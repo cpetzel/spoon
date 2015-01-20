@@ -28,7 +28,7 @@ final class HtmlTest {
                     testsPassed += 1;
                     duration += testResult.getDuration();
                 }
-                String serial = entry.getKey();
+                String serial = entry.getKey(); // //192_168_56_101_5555
                 DeviceDetails details = deviceResult.getDeviceDetails();
                 String name = (details != null) ? details.getName() : serial;
                 devices.add(TestResult.from(serial, name, testResult, output));
@@ -77,7 +77,10 @@ final class HtmlTest {
             String animatedGif = HtmlUtils.createRelativeUri(result.getAnimatedGif(), output);
             HtmlUtils.ExceptionInfo exception = HtmlUtils.processStackTrace(result.getException());
 
-            return new TestResult(name, serial, status, screenshots, animatedGif, exception);
+            // fancy stuff with the app data from summary
+            String appData = result.getAppData();
+
+            return new TestResult(name, serial, status, screenshots, animatedGif, exception, appData);
         }
 
         public final String name;
@@ -87,9 +90,10 @@ final class HtmlTest {
         public final List<HtmlUtils.Screenshot> screenshots;
         public final String animatedGif;
         public final HtmlUtils.ExceptionInfo exception;
+        public final String appData;
 
         TestResult(String name, String serial, String status, List<HtmlUtils.Screenshot> screenshots, String animatedGif,
-            HtmlUtils.ExceptionInfo exception) {
+            HtmlUtils.ExceptionInfo exception, String appData) {
             this.name = name;
             this.serial = serial;
             this.status = status;
@@ -97,6 +101,7 @@ final class HtmlTest {
             this.screenshots = screenshots;
             this.animatedGif = animatedGif;
             this.exception = exception;
+            this.appData = appData;
         }
 
         @Override

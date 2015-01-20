@@ -29,7 +29,7 @@ import static com.google.common.base.Charsets.UTF_8;
 public final class HtmlRenderer {
     public static final String INDEX_FILENAME = "index.html";
     private static final String STATIC_DIRECTORY = "static";
-    private static final String[] STATIC_ASSETS = { "bootstrap.min.css", "bootstrap-responsive.min.css", "bootstrap.min.js",
+    private static final String[] STATIC_ASSETS = { "lumos.png", "bootstrap.min.css", "bootstrap-responsive.min.css", "bootstrap.min.js",
             "jquery.min.js", "jquery.nivo.slider.pack.js", "nivo-slider.css", "icon-animated.png", "icon-devices.png", "icon-log.png",
             "ceiling_android.png", "arrows.png", "bullets.png", "loading.gif" };
 
@@ -56,6 +56,7 @@ public final class HtmlRenderer {
         generateDeviceHtml(mustacheFactory);
         generateTestHtml(mustacheFactory);
         generateLogHtml(mustacheFactory);
+        generateAppDataHtml(mustacheFactory);
     }
 
     private void copyStaticAssets() {
@@ -144,6 +145,23 @@ public final class HtmlRenderer {
             }
         }
     }
+    
+    private void generateAppDataHtml(MustacheFactory mustacheFactory) {
+        Mustache mustache = mustacheFactory.compile("page/appdata.html");
+        for (Map.Entry<String, DeviceResult> resultEntry : summary.getResults().entrySet()) {
+            String serial = resultEntry.getKey();
+            DeviceResult result = resultEntry.getValue();
+            DeviceDetails details = result.getDeviceDetails();
+            String name = (details != null) ? details.getName() : serial;
+            for (Map.Entry<DeviceTest, DeviceTestResult> entry : result.getTestResults().entrySet()) {
+                DeviceTest test = entry.getKey();
+                HtmlAppData scope = HtmlAppData.from(name, test, entry.getValue());
+                File file = FileUtils.getFile(output, "data", serial, test.getClassName(), test.getMethodName() + ".html");
+                renderMustacheToFile(mustache, scope, file);
+            }
+        }
+    }
+    
 
     private static void renderMustacheToFile(Mustache mustache, Object scope, File file) {
         FileWriter writer = null;

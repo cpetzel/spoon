@@ -1,31 +1,5 @@
 package com.squareup.spoon;
 
-import com.android.ddmlib.AndroidDebugBridge;
-import com.android.ddmlib.IDevice;
-import com.android.ddmlib.InstallException;
-import com.android.ddmlib.SyncService;
-import com.android.ddmlib.logcat.LogCatMessage;
-import com.android.ddmlib.testrunner.RemoteAndroidTestRunner;
-import com.android.ddmlib.testrunner.IRemoteAndroidTestRunner;
-import com.google.common.base.Strings;
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.Multimap;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.filefilter.TrueFileFilter;
-import com.squareup.spoon.adapters.TestIdentifierAdapter;
-
-import static com.android.ddmlib.FileListingService.FileEntry;
 import static com.squareup.spoon.Spoon.SPOON_SCREENSHOTS;
 import static com.squareup.spoon.SpoonLogger.logDebug;
 import static com.squareup.spoon.SpoonLogger.logError;
@@ -35,6 +9,35 @@ import static com.squareup.spoon.SpoonUtils.createAnimatedGif;
 import static com.squareup.spoon.SpoonUtils.obtainDirectoryFileEntry;
 import static com.squareup.spoon.SpoonUtils.obtainRealDevice;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.filefilter.TrueFileFilter;
+
+import com.android.ddmlib.AndroidDebugBridge;
+import com.android.ddmlib.FileListingService.FileEntry;
+import com.android.ddmlib.IDevice;
+import com.android.ddmlib.InstallException;
+import com.android.ddmlib.SyncService;
+import com.android.ddmlib.logcat.LogCatMessage;
+import com.android.ddmlib.testrunner.IRemoteAndroidTestRunner;
+import com.android.ddmlib.testrunner.RemoteAndroidTestRunner;
+import com.google.common.base.Strings;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
+import com.squareup.spoon.adapters.TestIdentifierAdapter;
+
 /** Represents a single device and the test configuration to be executed. */
 public final class SpoonDeviceRunner {
     private static final String FILE_EXECUTION = "execution.json";
@@ -42,6 +45,7 @@ public final class SpoonDeviceRunner {
     static final String TEMP_DIR = "work";
     static final String JUNIT_DIR = "junit-reports";
     static final String IMAGE_DIR = "image";
+    static final String DATA_DIR = "data";
 
     private final File sdk;
     private final File apk;
@@ -56,6 +60,7 @@ public final class SpoonDeviceRunner {
     private final File work;
     private final File junitReport;
     private final File imageDir;
+    private final File dataDir;
     private final String classpath;
     private final SpoonInstrumentationInfo instrumentationInfo;
 
@@ -106,6 +111,8 @@ public final class SpoonDeviceRunner {
         this.work = FileUtils.getFile(output, TEMP_DIR, serial);
         this.junitReport = FileUtils.getFile(output, JUNIT_DIR, serial + ".xml");
         this.imageDir = FileUtils.getFile(output, IMAGE_DIR, serial);
+        this.dataDir = FileUtils.getFile(output, DATA_DIR, serial);
+
     }
 
     /** Serialize to disk and start {@link #main(String...)} in another process. */
@@ -283,6 +290,67 @@ public final class SpoonDeviceRunner {
                     }
                 }
                 FileUtils.deleteDirectory(screenshotDir);
+            }
+        } catch (Exception e) {
+            result.addException(e);
+        }
+
+        // custom stuff...
+        try {
+            logDebug(debug, "About to grab app data and prepare output for [%s]", serial);
+
+            // Sync device app data, if any, to the local filesystem.
+            String dirName = "app_data";
+            String localDirName = work.getAbsolutePath();
+            final String devicePath = "/data/data/" + appPackage + "/" + dirName;
+            FileEntry deviceDir = obtainDirectoryFileEntry(devicePath);
+            logDebug(debug, "Pulling app data from [%s] %s", serial, devicePath);
+
+            device.getSyncService().pull(new FileEntry[] { deviceDir }, localDirName, SyncService.getNullProgressMonitor());
+
+            File appDataDir = new File(work, dirName);
+            if (appDataDir.exists()) {
+                dataDir.mkdirs();
+
+                // Move all children of the appData directory into the data folder.
+                File[] classNameDirs = appDataDir.listFiles();
+                if (classNameDirs != null) {
+                    // HashMap<DeviceTest, String> appTestDatas = new HashMap<DeviceTest, String>();
+                    for (File classNameDir : classNameDirs) {
+                        if (classNameDir.getName().contains("DS_STORE")) {
+                            continue;
+                        }
+                        String className = classNameDir.getName();
+                        File destDir = new File(dataDir, className);
+                        FileUtils.copyDirectory(classNameDir, destDir);
+
+                        // Get a sorted list of all test data files! in this class
+                        List<File> appDataStuffs = new ArrayList<File>(FileUtils.listFiles(destDir, TrueFileFilter.INSTANCE,
+                            TrueFileFilter.INSTANCE));
+
+                        // Iterate over each screenshot and associate it with its corresponding
+                        // method result.
+                        for (File appDataThingy : appDataStuffs) {
+                            String methodName = appDataThingy.getParentFile().getName();
+
+                            DeviceTest testIdentifier = new DeviceTest(className, methodName);
+                            DeviceTestResult.Builder builder = result.getMethodResultBuilder(testIdentifier);
+                            if (builder != null) {
+
+                                // what is data here?
+                                String dataFromFile = FileUtils.readFileToString(appDataThingy);
+                                builder.addAppData(dataFromFile);
+                            } else {
+                                logError("Unable to find test for %s", testIdentifier);
+                            }
+                        }
+
+                    }
+
+                }
+
+                // not remove?
+                FileUtils.deleteDirectory(appDataDir);
             }
         } catch (Exception e) {
             result.addException(e);

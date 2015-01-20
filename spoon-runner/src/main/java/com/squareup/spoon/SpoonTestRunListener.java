@@ -33,6 +33,7 @@ final class SpoonTestRunListener implements ITestRunListener {
 
     @Override
     public void testStarted(TestIdentifier test) {
+        // do stuff here... dump app data to files?
         logDebug(debug, "test=%s", test);
         DeviceTestResult.Builder methodResult = new DeviceTestResult.Builder().startTest();
         methodResults.put(testIdentifierAdapter.adapt(test), methodResult);

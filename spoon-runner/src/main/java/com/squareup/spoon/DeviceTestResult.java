@@ -26,15 +26,18 @@ public final class DeviceTestResult {
     private final List<File> screenshots;
     private final File animatedGif;
     private final List<LogCatMessage> log;
+    private String data = null;
 
-    private DeviceTestResult(Status status, StackTrace exception, long duration, List<File> screenshots, File animatedGif,
-        List<LogCatMessage> log) {
+
+    private DeviceTestResult(Status status, StackTrace exception, long duration,
+        List<File> screenshots, File animatedGif, List<LogCatMessage> log, String data) {
         this.status = status;
         this.exception = exception;
         this.duration = duration;
         this.screenshots = unmodifiableList(new ArrayList<File>(screenshots));
         this.animatedGif = animatedGif;
         this.log = unmodifiableList(new ArrayList<LogCatMessage>(log));
+        this.data = data;
     }
 
     /** Execution status. */
@@ -65,6 +68,11 @@ public final class DeviceTestResult {
     public List<LogCatMessage> getLog() {
         return log;
     }
+    
+    //TODO change structure
+    public String getAppData(){
+        return data;
+    }
 
     public static class Builder {
         private final List<File> screenshots = new ArrayList<File>();
@@ -74,6 +82,7 @@ public final class DeviceTestResult {
         private long duration = -1;
         private File animatedGif;
         private List<LogCatMessage> log;
+        private String data = null;
 
         public Builder markTestAsFailed(String message) {
             checkNotNull(message);
@@ -117,6 +126,12 @@ public final class DeviceTestResult {
             return this;
         }
 
+        public Builder addAppData(String data) {
+            checkNotNull(data);
+            this.data = data;
+            return this;
+        }
+
         public Builder setAnimatedGif(File animatedGif) {
             checkNotNull(animatedGif);
             checkArgument(this.animatedGif == null, "Animated GIF already set.");
@@ -128,7 +143,7 @@ public final class DeviceTestResult {
             if (log == null) {
                 log = Collections.emptyList();
             }
-            return new DeviceTestResult(status, exception, duration, screenshots, animatedGif, log);
+            return new DeviceTestResult(status, exception, duration, screenshots, animatedGif, log, data);
         }
     }
 }
