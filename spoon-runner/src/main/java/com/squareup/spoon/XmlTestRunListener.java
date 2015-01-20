@@ -8,17 +8,16 @@ import java.io.IOException;
  * directly to an output file.
  */
 class XmlTestRunListener extends com.android.ddmlib.testrunner.XmlTestRunListener {
-  private final File file;
+    private final File file;
 
-  XmlTestRunListener(File file) {
-    if (file == null) {
-      throw new IllegalArgumentException("File may not be null.");
+    XmlTestRunListener(File file) {
+        if (file == null) { throw new IllegalArgumentException("File may not be null."); }
+        this.file = file;
     }
-    this.file = file;
-  }
 
-  @Override protected File getResultFile(File reportDir) throws IOException {
-    file.getParentFile().mkdirs();
-    return file;
-  }
+    @Override
+    protected File getResultFile(File reportDir) throws IOException {
+        file.getParentFile().mkdirs();
+        return file;
+    }
 }
