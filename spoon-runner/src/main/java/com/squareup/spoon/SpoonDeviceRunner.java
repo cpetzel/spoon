@@ -18,7 +18,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -295,7 +294,7 @@ public final class SpoonDeviceRunner {
             result.addException(e);
         }
 
-        // custom stuff...
+        // gather Lumos App Data stuffs
         try {
             logDebug(debug, "About to grab app data and prepare output for [%s]", serial);
 
@@ -344,9 +343,7 @@ public final class SpoonDeviceRunner {
                                 logError("Unable to find test for %s", testIdentifier);
                             }
                         }
-
                     }
-
                 }
 
                 // not remove?

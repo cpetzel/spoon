@@ -1,11 +1,12 @@
 package com.squareup.spoon.html;
 
-import com.android.ddmlib.logcat.LogCatMessage;
+import java.util.List;
+
 import com.squareup.spoon.DeviceTest;
 import com.squareup.spoon.DeviceTestResult;
 
 /** Model for representing a {@code log.html} page. */
-final class HtmlAppData {
+public final class HtmlAppData {
     public static HtmlAppData from(String name, DeviceTest test, DeviceTestResult result) {
         String status;
         switch (result.getStatus()) {
@@ -25,60 +26,32 @@ final class HtmlAppData {
         String title = HtmlUtils.prettifyMethodName(test.getMethodName());
         String subtitle = "Test " + status + " in " + HtmlUtils.humanReadableDuration(result.getDuration()) + " on " + name;
 
-        // List<LogEntry> log = new ArrayList<LogEntry>();
-        // for (LogCatMessage message : result.getLog()) {
-        // log.add(LogEntry.from(message));
-        // }
-
-        String appData = result.getAppData();
-        return new HtmlAppData(title, subtitle, appData);
+        return new HtmlAppData(title, subtitle, result.getUserData(), result.getServerData(), result.getSplitTestAssignments());
     }
 
     public final String title;
     public final String subtitle;
-    // public final List<LogEntry> log;
-    public final String data;
+    public final List<KeyValuePair> userData;
+    public final List<KeyValuePair> serverData;
+    public final List<KeyValuePair> splitTestData;
 
-    HtmlAppData(String title, String subtitle, String data) {
+    HtmlAppData(String title, String subtitle, List<KeyValuePair> userData, List<KeyValuePair> serverData, List<KeyValuePair> splitTestData) {
         this.title = title;
         this.subtitle = subtitle;
-        this.data = data;
+        this.userData = userData;
+        this.serverData = serverData;
+        this.splitTestData = splitTestData;
     }
 
-    static class LogEntry {
-        static LogEntry from(LogCatMessage message) {
-            String rowClass;
-            switch (message.getLogLevel()) {
-            case ERROR:
-                rowClass = "error";
-                break;
-            case WARN:
-                rowClass = "warning";
-                break;
-            case INFO:
-                rowClass = "info";
-                break;
-            default:
-                rowClass = "";
-            }
+    public static class KeyValuePair {
 
-            String timestamp = message.getTime();
-            String level = message.getLogLevel().getStringValue();
-            return new LogEntry(rowClass, timestamp, level, message.getTag(), message.getMessage());
+        public KeyValuePair(String name, String assignment) {
+            this.name = name;
+            this.value = assignment;
         }
 
-        public final String rowClass;
-        public final String timestamp;
-        public final String level;
-        public final String tag;
-        public final String message;
+        public final String name;
+        public final String value;
 
-        LogEntry(String rowClass, String timestamp, String level, String tag, String message) {
-            this.rowClass = rowClass;
-            this.timestamp = timestamp;
-            this.level = level;
-            this.tag = tag;
-            this.message = message;
-        }
     }
 }

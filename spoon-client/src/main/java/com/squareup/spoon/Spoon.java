@@ -45,16 +45,39 @@ public final class Spoon {
      * This should create a file on disk that contains data about the app under test - split test
      * data - server data - user data
      * 
-     * @param data
      */
-    public static File dumpAppData(Activity a, String data) {
+    public static File dumpAppData(Context context, String testClass, String testMethod, String data) {
+        Log.d(TAG, "dumpAppData(): class = " + testClass + "   method name = " + testMethod);
+
+        testClass = testClass.replaceAll("[^A-Za-z0-9._-]", "_");
+
+        File dir = context.getDir(APP_DATA, MODE_WORLD_READABLE);
+        Log.d(TAG, "dumpAppData- app data directory = " + dir);
+
+        synchronized (LOCK) {
+            if (!clearedDirs.contains(APP_DATA)) {
+                deletePath(dir, false);
+                Log.d(TAG, "DELETINGe = " + dir);
+                clearedDirs.add(APP_DATA);
+            }
+        }
 
         try {
-            File appDataDirectory = obtainDirectory(APP_DATA, a);
-            File appDataFile = new File(appDataDirectory, APP_DATA_FILENAME);
+
+            File parentDir = new File(dir, testClass);
+            Log.d(TAG, "parentDir = " + parentDir);
+            createDir(parentDir);
+
+            File dirMethod = new File(parentDir, testMethod);
+            Log.d(TAG, "dirMethod = " + dirMethod);
+            createDir(dirMethod);
+
+            File appDataFile = new File(dirMethod, APP_DATA_FILENAME);
+            Log.d(TAG, "appDataFile = " + appDataFile);
+
             // write the data to file
             writeDataToFile(data, appDataFile);
-            Log.d(TAG, "wrote data file to " + appDataDirectory);
+            Log.d(TAG, "wrote data file to " + appDataFile);
             return appDataFile;
         } catch (Exception e) {
             throw new RuntimeException("Unable to capture screenshot.", e);
@@ -101,7 +124,6 @@ public final class Spoon {
                 }
             }
         }
-
     }
 
     // same as screenshots, but with different ir
@@ -122,6 +144,7 @@ public final class Spoon {
         String className = testClass.getClassName().replaceAll("[^A-Za-z0-9._-]", "_");
         File dirClass = new File(dir, className);
         File dirMethod = new File(dirClass, testClass.getMethodName());
+        Log.d(TAG, "class = " + dirClass + "   method name = " + dirMethod);
         createDir(dirMethod);
         return dirMethod;
     }

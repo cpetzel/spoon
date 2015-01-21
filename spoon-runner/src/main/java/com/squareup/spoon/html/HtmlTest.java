@@ -1,16 +1,17 @@
 package com.squareup.spoon.html;
 
-import com.squareup.spoon.DeviceDetails;
-import com.squareup.spoon.DeviceResult;
-import com.squareup.spoon.DeviceTest;
-import com.squareup.spoon.DeviceTestResult;
-import com.squareup.spoon.SpoonSummary;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static com.squareup.spoon.DeviceTestResult.Status;
+import com.squareup.spoon.DeviceDetails;
+import com.squareup.spoon.DeviceResult;
+import com.squareup.spoon.DeviceTest;
+import com.squareup.spoon.DeviceTestResult;
+import com.squareup.spoon.DeviceTestResult.Status;
+import com.squareup.spoon.SpoonSummary;
+import com.squareup.spoon.html.HtmlAppData.KeyValuePair;
 
 /** Model for representing a {@code test.html} page. */
 final class HtmlTest {
@@ -78,9 +79,11 @@ final class HtmlTest {
             HtmlUtils.ExceptionInfo exception = HtmlUtils.processStackTrace(result.getException());
 
             // fancy stuff with the app data from summary
-            String appData = result.getAppData();
+            List<KeyValuePair> userData = result.getUserData();
+            List<KeyValuePair> serverData = result.getServerData();
+            List<KeyValuePair> splitTestData = result.getSplitTestAssignments();
 
-            return new TestResult(name, serial, status, screenshots, animatedGif, exception, appData);
+            return new TestResult(name, serial, status, screenshots, animatedGif, exception, userData, serverData, splitTestData);
         }
 
         public final String name;
@@ -90,10 +93,12 @@ final class HtmlTest {
         public final List<HtmlUtils.Screenshot> screenshots;
         public final String animatedGif;
         public final HtmlUtils.ExceptionInfo exception;
-        public final String appData;
+        public final List<KeyValuePair> userData;
+        public final List<KeyValuePair> serverData;
+        public final List<KeyValuePair> splitTestData;
 
         TestResult(String name, String serial, String status, List<HtmlUtils.Screenshot> screenshots, String animatedGif,
-            HtmlUtils.ExceptionInfo exception, String appData) {
+            HtmlUtils.ExceptionInfo exception, List<KeyValuePair> userData, List<KeyValuePair> serverData, List<KeyValuePair> splitTestData) {
             this.name = name;
             this.serial = serial;
             this.status = status;
@@ -101,7 +106,9 @@ final class HtmlTest {
             this.screenshots = screenshots;
             this.animatedGif = animatedGif;
             this.exception = exception;
-            this.appData = appData;
+            this.userData = userData;
+            this.serverData = serverData;
+            this.splitTestData = splitTestData;
         }
 
         @Override
