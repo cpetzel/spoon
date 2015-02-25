@@ -16,17 +16,20 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.regex.Pattern;
 
+import com.sun.corba.se.spi.legacy.connection.GetEndPointInfoAgainException;
+
 import android.app.Activity;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.os.Environment;
 import android.os.Looper;
 import android.util.DisplayMetrics;
 import android.util.Log;
 
 /** Utility class for capturing screenshots for Spoon. */
 public final class Spoon {
-    static final String SPOON_SCREENSHOTS = "spoon-screenshots";
+    static final String SPOON_SCREENSHOTS = "SPOON_SCREENSHOTS";
     static final String APP_DATA = "data";
 
     static final String NAME_SEPARATOR = "_";
@@ -47,17 +50,17 @@ public final class Spoon {
      * 
      */
     public static File dumpAppData(Context context, String testClass, String testMethod, String data) {
-        Log.d(TAG, "dumpAppData(): class = " + testClass + "   method name = " + testMethod);
+        Log.v(TAG, "dumpAppData(): class = " + testClass + "   method name = " + testMethod);
 
         testClass = testClass.replaceAll("[^A-Za-z0-9._-]", "_");
 
         File dir = context.getDir(APP_DATA, MODE_WORLD_READABLE);
-        Log.d(TAG, "dumpAppData- app data directory = " + dir);
+        Log.v(TAG, "dumpAppData- app data directory = " + dir);
 
         synchronized (LOCK) {
             if (!clearedDirs.contains(APP_DATA)) {
                 deletePath(dir, false);
-                Log.d(TAG, "DELETINGe = " + dir);
+                Log.v(TAG, "DELETINGe = " + dir);
                 clearedDirs.add(APP_DATA);
             }
         }
@@ -65,19 +68,19 @@ public final class Spoon {
         try {
 
             File parentDir = new File(dir, testClass);
-            Log.d(TAG, "parentDir = " + parentDir);
+            Log.v(TAG, "parentDir = " + parentDir);
             createDir(parentDir);
 
             File dirMethod = new File(parentDir, testMethod);
-            Log.d(TAG, "dirMethod = " + dirMethod);
+            Log.v(TAG, "dirMethod = " + dirMethod);
             createDir(dirMethod);
 
             File appDataFile = new File(dirMethod, APP_DATA_FILENAME);
-            Log.d(TAG, "appDataFile = " + appDataFile);
+            Log.v(TAG, "appDataFile = " + appDataFile);
 
             // write the data to file
             writeDataToFile(data, appDataFile);
-            Log.d(TAG, "wrote data file to " + appDataFile);
+            Log.v(TAG, "wrote data file to " + appDataFile);
             return appDataFile;
         } catch (Exception e) {
             throw new RuntimeException("Unable to capture screenshot.", e);
@@ -129,13 +132,13 @@ public final class Spoon {
     // same as screenshots, but with different ir
     private static File obtainDirectory(String parentPath, Context context) throws IllegalAccessException {
         File dir = context.getDir(parentPath, MODE_WORLD_READABLE);
-        Log.d(TAG, "obtaining directory = " + dir);
+        Log.v(TAG, "obtaining directory = " + dir);
 
         synchronized (LOCK) {
 
             if (!clearedDirs.contains(parentPath)) {
                 deletePath(dir, false);
-                Log.d(TAG, "DELETINGe = " + dir);
+                Log.v(TAG, "DELETINGe = " + dir);
                 clearedDirs.add(parentPath);
             }
         }
@@ -144,7 +147,7 @@ public final class Spoon {
         String className = testClass.getClassName().replaceAll("[^A-Za-z0-9._-]", "_");
         File dirClass = new File(dir, className);
         File dirMethod = new File(dirClass, testClass.getMethodName());
-        Log.d(TAG, "class = " + dirClass + "   method name = " + dirMethod);
+        Log.v(TAG, "class = " + dirClass + "   method name = " + dirMethod);
         createDir(dirMethod);
         return dirMethod;
     }
@@ -162,11 +165,11 @@ public final class Spoon {
         if (!TAG_VALIDATION.matcher(tag).matches()) { throw new IllegalArgumentException("Tag must match " + TAG_VALIDATION.pattern() + "."); }
         try {
             File screenshotDirectory = obtainDirectory(SPOON_SCREENSHOTS, activity);
-            Log.d(TAG, "screenshots dir = " + screenshotDirectory);
+            Log.v(TAG, "screenshots dir = " + screenshotDirectory);
             String screenshotName = System.currentTimeMillis() + NAME_SEPARATOR + tag + EXTENSION;
             File screenshotFile = new File(screenshotDirectory, screenshotName);
             takeScreenshot(screenshotFile, activity);
-            Log.d(TAG, "Captured screenshot '" + tag + "'.");
+            Log.v(TAG, "Captured screenshot '" + tag + "'.");
             return screenshotFile;
         } catch (Exception e) {
             throw new RuntimeException("Unable to capture screenshot.", e);
