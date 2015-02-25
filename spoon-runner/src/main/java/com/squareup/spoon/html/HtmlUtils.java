@@ -131,6 +131,10 @@ final class HtmlUtils {
     /** Convert an image name from {@code 87243508_this-here-is-it} to "This Here Is It". */
     static String prettifyImageName(String imageName) {
         imageName = FilenameUtils.removeExtension(imageName);
+        
+        if(!imageName.contains(SCREENSHOT_SEPARATOR)){
+            return imageName;
+        }
 
         // Remove the timestamp information.
         imageName = imageName.split(SCREENSHOT_SEPARATOR, 2)[1];
