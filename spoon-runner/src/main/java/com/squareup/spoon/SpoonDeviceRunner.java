@@ -1,6 +1,5 @@
 package com.squareup.spoon;
 
-import static com.squareup.spoon.Spoon.SPOON_SCREENSHOTS;
 import static com.squareup.spoon.SpoonLogger.logDebug;
 import static com.squareup.spoon.SpoonLogger.logError;
 import static com.squareup.spoon.SpoonLogger.logInfo;
@@ -25,6 +24,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.TrueFileFilter;
 
 import com.android.ddmlib.AndroidDebugBridge;
+import com.android.ddmlib.CollectingOutputReceiver;
 import com.android.ddmlib.FileListingService.FileEntry;
 import com.android.ddmlib.IDevice;
 import com.android.ddmlib.InstallException;
@@ -45,6 +45,8 @@ public final class SpoonDeviceRunner {
     static final String JUNIT_DIR = "junit-reports";
     static final String IMAGE_DIR = "image";
     static final String DATA_DIR = "data";
+
+    static final String SPOON_SCREENSHOTS = "SPOON_SCREENSHOTS";
 
     private final File sdk;
     private final File apk;
@@ -231,9 +233,13 @@ public final class SpoonDeviceRunner {
             logDebug(debug, "About to grab screenshots and prepare output for [%s]", serial);
 
             // Sync device screenshots, if any, to the local filesystem.
-            String dirName = "app_" + SPOON_SCREENSHOTS;
+            String dirName = SPOON_SCREENSHOTS;
             String localDirName = work.getAbsolutePath();
-            final String devicePath = "/data/data/" + appPackage + "/" + dirName;
+
+            // Get external storage directory (fix for Lollipop devices)
+            String externalStorageDirectory = getExternalStorageDir(device);
+            final String devicePath = externalStorageDirectory + "/lumosity_test_data/" + dirName;
+            
             FileEntry deviceDir = obtainDirectoryFileEntry(devicePath);
             logDebug(debug, "Pulling screenshots from [%s] %s", serial, devicePath);
 
@@ -299,11 +305,15 @@ public final class SpoonDeviceRunner {
             logDebug(debug, "About to grab app data and prepare output for [%s]", serial);
 
             // Sync device app data, if any, to the local filesystem.
-            String dirName = "app_data";
-            String localDirName = work.getAbsolutePath();
-            final String devicePath = "/data/data/" + appPackage + "/" + dirName;
+            String dirName = "data";
+            String localDirName = work.getAbsolutePath(); 
+            
+           // Get external storage directory (fix for Lollipop devices)
+            String externalStorageDirectory = getExternalStorageDir(device);
+            final String devicePath = externalStorageDirectory + "/lumosity_test_data/" + dirName;
+            
             FileEntry deviceDir = obtainDirectoryFileEntry(devicePath);
-            logDebug(debug, "Pulling app data from [%s] %s", serial, devicePath);
+            logDebug(debug, "Pulling App Data from [%s] %s", serial, devicePath);
 
             device.getSyncService().pull(new FileEntry[] { deviceDir }, localDirName, SyncService.getNullProgressMonitor());
 
@@ -354,6 +364,19 @@ public final class SpoonDeviceRunner {
         }
 
         return result.build();
+    }
+
+    private String getExternalStorageDir(IDevice device) {
+        // Get external storage directory
+        CollectingOutputReceiver pathNameOutputReciever = new CollectingOutputReceiver();
+        String dir = "";
+        try {
+            device.executeShellCommand("echo $EXTERNAL_STORAGE", pathNameOutputReciever);
+            dir = pathNameOutputReciever.getOutput().trim();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return dir;
     }
 
     // ///////////////////////////////////////////////////////////////////////////
