@@ -396,7 +396,6 @@ public final class SpoonDeviceRunner {
 
         @Override
         public boolean isCanceled() {
-            // TODO Auto-generated method stub
             return false;
         }
 
@@ -408,7 +407,7 @@ public final class SpoonDeviceRunner {
 
         @Override
         public void advance(int work) {
-            logDebug(debug, "advance = " + work);
+            //logDebug(debug, "advance = " + work);
         }
 
     };
