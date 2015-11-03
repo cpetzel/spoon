@@ -203,7 +203,7 @@ public final class SpoonDeviceRunner {
         SpoonDeviceLogger deviceLogger = null;
         if (logcatEnabled) {
             // Initiate device logging.
-            deviceLogger = new SpoonDeviceLogger(device); //starts a thread
+            deviceLogger = new SpoonDeviceLogger(device); // starts a thread
         }
 
         // Run all the tests! o/
@@ -251,7 +251,9 @@ public final class SpoonDeviceRunner {
             FileEntry deviceDir = obtainDirectoryFileEntry(devicePath);
             logDebug(debug, "Pulling screenshots from [%s] %s", serial, devicePath);
 
-            device.getSyncService().pull(new FileEntry[] { deviceDir }, localDirName, new MySyncMonitor());
+            device.getSyncService().pull(new FileEntry[] { deviceDir }, localDirName, SyncService.getNullProgressMonitor());
+
+            logDebug(debug, "Done pulling screenshots from [%s] %s", serial, devicePath);
 
             File screenshotDir = new File(work, dirName);
             if (screenshotDir.exists()) {
@@ -260,63 +262,72 @@ public final class SpoonDeviceRunner {
                 // Move all children of the screenshot directory into the image folder.
                 File[] classNameDirs = screenshotDir.listFiles();
                 if (classNameDirs != null) {
-                    Multimap<DeviceTest, File> testScreenshots = ArrayListMultimap.create();
+//                    Multimap<DeviceTest, File> testScreenshots = ArrayListMultimap.create();
                     for (File classNameDir : classNameDirs) {
                         String className = classNameDir.getName();
                         File destDir = new File(imageDir, className);
                         FileUtils.copyDirectory(classNameDir, destDir);
+                        logDebug(debug, "Copying from device [%s] ... %s to %s", serial, classNameDir.getAbsolutePath(),
+                            destDir.getAbsolutePath());
 
-                        // Get a sorted list of all screenshots from the device run.
-                        List<File> screenshots = new ArrayList<File>(FileUtils.listFiles(destDir, TrueFileFilter.INSTANCE,
-                            TrueFileFilter.INSTANCE));
-                        Collections.sort(screenshots);
-
-                        // Iterate over each screenshot and associate it with its corresponding
-                        // method result.
-                        for (File screenshot : screenshots) {
-                            String methodName = screenshot.getParentFile().getName();
-
-                            DeviceTest testIdentifier = new DeviceTest(className, methodName);
-                            DeviceTestResult.Builder builder = result.getMethodResultBuilder(testIdentifier);
-                            if (builder != null) {
-                                builder.addScreenshot(screenshot);
-                                testScreenshots.put(testIdentifier, screenshot);
-                            } else {
-                                logError("Unable to find test for %s", testIdentifier);
-                            }
-                        }
+                        // // Get a sorted list of all screenshots from the device run.
+                        // List<File> screenshots = new ArrayList<File>(FileUtils.listFiles(destDir,
+                        // TrueFileFilter.INSTANCE,
+                        // TrueFileFilter.INSTANCE));
+                        // Collections.sort(screenshots);
+                        //
+                        // // Iterate over each screenshot and associate it with its corresponding
+                        // // method result.
+                        // for (File screenshot : screenshots) {
+                        // String methodName = screenshot.getParentFile().getName();
+                        //
+                        // DeviceTest testIdentifier = new DeviceTest(className, methodName);
+                        // DeviceTestResult.Builder builder =
+                        // result.getMethodResultBuilder(testIdentifier);
+                        // if (builder != null) {
+                        // builder.addScreenshot(screenshot);
+                        // testScreenshots.put(testIdentifier, screenshot);
+                        // } else {
+                        // logError("Unable to find test for %s", testIdentifier);
+                        // }
+                        // }
                     }
 
                     // Don't generate animations if the switch is present
-                    if (!noAnimations) {
-                        // Make animated GIFs for all the tests which have screenshots.
-                        for (DeviceTest deviceTest : testScreenshots.keySet()) {
-                            List<File> screenshots = new ArrayList<File>(testScreenshots.get(deviceTest));
-                            if (screenshots.size() == 1) {
-                                continue; // Do not make an animated GIF if there is only one
-                                          // screenshot.
-                            }
-                            File animatedGif = FileUtils.getFile(imageDir, deviceTest.getClassName(), deviceTest.getMethodName() + ".gif");
-                            createAnimatedGif(screenshots, animatedGif);
-                            result.getMethodResultBuilder(deviceTest).setAnimatedGif(animatedGif);
-                        }
-                    }
+//                    if (!noAnimations) {
+//                        // Make animated GIFs for all the tests which have screenshots.
+//                        for (DeviceTest deviceTest : testScreenshots.keySet()) {
+//                            List<File> screenshots = new ArrayList<File>(testScreenshots.get(deviceTest));
+//                            if (screenshots.size() == 1) {
+//                                continue; // Do not make an animated GIF if there is only one
+//                                          // screenshot.
+//                            }
+//                            File animatedGif = FileUtils.getFile(imageDir, deviceTest.getClassName(), deviceTest.getMethodName() + ".gif");
+//                            createAnimatedGif(screenshots, animatedGif);
+//                            result.getMethodResultBuilder(deviceTest).setAnimatedGif(animatedGif);
+//                        }
+//                    }
                 }
                 FileUtils.deleteDirectory(screenshotDir);
             }
         } catch (Exception e) {
+            logDebug(debug, "EXCEPTION with pulling and manipulating screenshots on [%s]", serial);
+
             result.addException(e);
         }
         
-        //TODO can eventuall just remove this, as our screenshot tool does not use this data
-        if(false){
+        logDebug(debug, "DONE doing screenshot stuff on [%s]", serial);
+
+
+        // TODO can eventuall just remove this, as our screenshot tool does not use this data
+        if (false) {
             addAppDataToResult(result, device);
-        }      
+        }
 
         return result.build();
     }
 
-    private void addAppDataToResult(DeviceResult.Builder result, IDevice device){
+    private void addAppDataToResult(DeviceResult.Builder result, IDevice device) {
         // gather Lumos App Data stuffs
         try {
             logDebug(debug, "About to grab app data and prepare output for [%s]", serial);
@@ -380,8 +391,7 @@ public final class SpoonDeviceRunner {
             result.addException(e);
         }
     }
-    
-    
+
     private class MySyncMonitor implements ISyncProgressMonitor {
 
         @Override
@@ -407,7 +417,7 @@ public final class SpoonDeviceRunner {
 
         @Override
         public void advance(int work) {
-            //logDebug(debug, "advance = " + work);
+            // logDebug(debug, "advance = " + work);
         }
 
     };
