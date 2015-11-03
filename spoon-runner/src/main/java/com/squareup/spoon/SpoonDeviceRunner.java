@@ -29,6 +29,7 @@ import com.android.ddmlib.FileListingService.FileEntry;
 import com.android.ddmlib.IDevice;
 import com.android.ddmlib.InstallException;
 import com.android.ddmlib.SyncService;
+import com.android.ddmlib.SyncService.ISyncProgressMonitor;
 import com.android.ddmlib.logcat.LogCatMessage;
 import com.android.ddmlib.testrunner.IRemoteAndroidTestRunner;
 import com.android.ddmlib.testrunner.RemoteAndroidTestRunner;
@@ -64,6 +65,7 @@ public final class SpoonDeviceRunner {
     private final File dataDir;
     private final String classpath;
     private final SpoonInstrumentationInfo instrumentationInfo;
+    private boolean logcatEnabled;
 
     /**
      * Create a test runner for a single device.
@@ -94,7 +96,7 @@ public final class SpoonDeviceRunner {
      */
     SpoonDeviceRunner(File sdk, File apk, File testApk, File output, String serial, boolean debug, boolean noAnimations, int adbTimeout,
         String classpath, SpoonInstrumentationInfo instrumentationInfo, String className, String methodName,
-        IRemoteAndroidTestRunner.TestSize testSize) {
+        IRemoteAndroidTestRunner.TestSize testSize, boolean logcatEnabled) {
         this.sdk = sdk;
         this.apk = apk;
         this.testApk = testApk;
@@ -107,6 +109,7 @@ public final class SpoonDeviceRunner {
         this.testSize = testSize;
         this.classpath = classpath;
         this.instrumentationInfo = instrumentationInfo;
+        this.logcatEnabled = logcatEnabled;
 
         serial = SpoonUtils.sanitizeSerial(serial);
         this.work = FileUtils.getFile(output, TEMP_DIR, serial);
@@ -197,8 +200,11 @@ public final class SpoonDeviceRunner {
         // Create the output directory, if it does not already exist.
         work.mkdirs();
 
-        // Initiate device logging.
-        SpoonDeviceLogger deviceLogger = new SpoonDeviceLogger(device);
+        SpoonDeviceLogger deviceLogger = null;
+        if (logcatEnabled) {
+            // Initiate device logging.
+            deviceLogger = new SpoonDeviceLogger(device); //starts a thread
+        }
 
         // Run all the tests! o/
         try {
@@ -220,12 +226,14 @@ public final class SpoonDeviceRunner {
             result.addException(e);
         }
 
-        // Grab all the parsed logs and map them to individual tests.
-        Map<DeviceTest, List<LogCatMessage>> logs = deviceLogger.getParsedLogs();
-        for (Map.Entry<DeviceTest, List<LogCatMessage>> entry : logs.entrySet()) {
-            DeviceTestResult.Builder builder = result.getMethodResultBuilder(entry.getKey());
-            if (builder != null) {
-                builder.setLog(entry.getValue());
+        if (logcatEnabled && deviceLogger != null) {
+            // Grab all the parsed logs and map them to individual tests.
+            Map<DeviceTest, List<LogCatMessage>> logs = deviceLogger.getParsedLogs();
+            for (Map.Entry<DeviceTest, List<LogCatMessage>> entry : logs.entrySet()) {
+                DeviceTestResult.Builder builder = result.getMethodResultBuilder(entry.getKey());
+                if (builder != null) {
+                    builder.setLog(entry.getValue());
+                }
             }
         }
 
@@ -239,11 +247,11 @@ public final class SpoonDeviceRunner {
             // Get external storage directory (fix for Lollipop devices)
             String externalStorageDirectory = getExternalStorageDir(device);
             final String devicePath = externalStorageDirectory + "/lumosity_test_data/" + dirName;
-            
+
             FileEntry deviceDir = obtainDirectoryFileEntry(devicePath);
             logDebug(debug, "Pulling screenshots from [%s] %s", serial, devicePath);
 
-            device.getSyncService().pull(new FileEntry[] { deviceDir }, localDirName, SyncService.getNullProgressMonitor());
+            device.getSyncService().pull(new FileEntry[] { deviceDir }, localDirName, new MySyncMonitor());
 
             File screenshotDir = new File(work, dirName);
             if (screenshotDir.exists()) {
@@ -299,19 +307,28 @@ public final class SpoonDeviceRunner {
         } catch (Exception e) {
             result.addException(e);
         }
+        
+        //TODO can eventuall just remove this, as our screenshot tool does not use this data
+        if(false){
+            addAppDataToResult(result, device);
+        }      
 
+        return result.build();
+    }
+
+    private void addAppDataToResult(DeviceResult.Builder result, IDevice device){
         // gather Lumos App Data stuffs
         try {
             logDebug(debug, "About to grab app data and prepare output for [%s]", serial);
 
             // Sync device app data, if any, to the local filesystem.
             String dirName = "data";
-            String localDirName = work.getAbsolutePath(); 
-            
-           // Get external storage directory (fix for Lollipop devices)
+            String localDirName = work.getAbsolutePath();
+
+            // Get external storage directory (fix for Lollipop devices)
             String externalStorageDirectory = getExternalStorageDir(device);
             final String devicePath = externalStorageDirectory + "/lumosity_test_data/" + dirName;
-            
+
             FileEntry deviceDir = obtainDirectoryFileEntry(devicePath);
             logDebug(debug, "Pulling App Data from [%s] %s", serial, devicePath);
 
@@ -362,9 +379,39 @@ public final class SpoonDeviceRunner {
         } catch (Exception e) {
             result.addException(e);
         }
-
-        return result.build();
     }
+    
+    
+    private class MySyncMonitor implements ISyncProgressMonitor {
+
+        @Override
+        public void start(int totalWork) {
+            logDebug(debug, "totalWork = " + totalWork);
+        }
+
+        @Override
+        public void stop() {
+            logDebug(debug, "stop()");
+        }
+
+        @Override
+        public boolean isCanceled() {
+            // TODO Auto-generated method stub
+            return false;
+        }
+
+        @Override
+        public void startSubTask(String name) {
+            logDebug(debug, "startSubTask() name = " + name);
+
+        }
+
+        @Override
+        public void advance(int work) {
+            logDebug(debug, "advance = " + work);
+        }
+
+    };
 
     private String getExternalStorageDir(IDevice device) {
         // Get external storage directory
