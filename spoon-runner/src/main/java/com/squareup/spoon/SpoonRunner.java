@@ -31,7 +31,6 @@ public final class SpoonRunner {
     private static final String DEFAULT_TITLE = "Spoon Execution";
     public static final String DEFAULT_OUTPUT_DIRECTORY = "spoon-output";
     private static final int DEFAULT_ADB_TIMEOUT = 10 * 60; // 10 minutes
-    private static final boolean DEFAULT_LOGCAT_ENABLED = true;
 
     private final String title;
     private final File androidSdk;
@@ -47,12 +46,11 @@ public final class SpoonRunner {
     private final String classpath;
     private final IRemoteAndroidTestRunner.TestSize testSize;
     private final boolean failIfNoDeviceConnected;
-    private final boolean logcatEnabled;
-
+    private final boolean disableLogging;
 
     private SpoonRunner(String title, File androidSdk, File applicationApk, File instrumentationApk, File output, boolean debug,
         boolean noAnimations, int adbTimeout, Set<String> serials, String classpath, String className, String methodName,
-        IRemoteAndroidTestRunner.TestSize testSize, boolean failIfNoDeviceConnected, boolean logcatEnabled) {
+        IRemoteAndroidTestRunner.TestSize testSize, boolean failIfNoDeviceConnected, boolean disableLogging) {
         this.title = title;
         this.androidSdk = androidSdk;
         this.applicationApk = applicationApk;
@@ -67,7 +65,7 @@ public final class SpoonRunner {
         this.testSize = testSize;
         this.serials = ImmutableSet.copyOf(serials);
         this.failIfNoDeviceConnected = failIfNoDeviceConnected;
-        this.logcatEnabled = logcatEnabled;
+        this.disableLogging = disableLogging;
     }
 
     /**
@@ -199,7 +197,7 @@ public final class SpoonRunner {
 
     private SpoonDeviceRunner getTestRunner(String serial, SpoonInstrumentationInfo testInfo) {
         return new SpoonDeviceRunner(androidSdk, applicationApk, instrumentationApk, output, serial, debug, noAnimations, adbTimeout,
-            classpath, testInfo, className, methodName, testSize, logcatEnabled);
+            classpath, testInfo, className, methodName, testSize, disableLogging);
     }
 
     /** Build a test suite for the specified devices and configuration. */
@@ -218,7 +216,7 @@ public final class SpoonRunner {
         private IRemoteAndroidTestRunner.TestSize testSize;
         private int adbTimeout;
         private boolean failIfNoDeviceConnected;
-        private boolean logcatEnabled;
+        private boolean disableLogging;
 
         /** Identifying title for this execution. */
         public Builder setTitle(String title) {
@@ -321,9 +319,9 @@ public final class SpoonRunner {
             this.methodName = methodName;
             return this;
         }
-        
-        public Builder setLogcatEnabled(boolean logcatEnabled) {
-            this.logcatEnabled = logcatEnabled;
+
+        public Builder setDisableLogging(boolean disableLogging) {
+            this.disableLogging = disableLogging;
             return this;
         }
 
@@ -339,7 +337,7 @@ public final class SpoonRunner {
             }
 
             return new SpoonRunner(title, androidSdk, applicationApk, instrumentationApk, output, debug, noAnimations, adbTimeout, serials,
-                classpath, className, methodName, testSize, failIfNoDeviceConnected, logcatEnabled);
+                classpath, className, methodName, testSize, failIfNoDeviceConnected, disableLogging);
         }
     }
 
@@ -383,9 +381,11 @@ public final class SpoonRunner {
 
         @Parameter(names = { "--debug" }, hidden = true)
         public boolean debug;
-        
-        @Parameter(names = { "--logcat-enabled" }, description = "enable gathering of LOGCAT output")
-        public boolean logcatEnabled;
+
+        @Parameter(
+            names = { "--disable-logging" },
+            description = "Will disable gathering of logs in failed tests. If this param is included, then NO logs will be gathered. (default is on)")
+        public boolean disableLogging;
 
         @Parameter(names = { "-h", "--help" }, description = "Command help", help = true, hidden = true)
         public boolean help;
@@ -439,7 +439,7 @@ public final class SpoonRunner {
             .setOutputDirectory(parsedArgs.output).setDebug(parsedArgs.debug).setAndroidSdk(parsedArgs.sdk)
             .setNoAnimations(parsedArgs.noAnimations).setTestSize(parsedArgs.size).setAdbTimeout(parsedArgs.adbTimeoutSeconds * 1000)
             .setFailIfNoDeviceConnected(parsedArgs.failIfNoDeviceConnected).setClassName(parsedArgs.className)
-            .setMethodName(parsedArgs.methodName).useAllAttachedDevices().setLogcatEnabled(parsedArgs.logcatEnabled).build();
+            .setMethodName(parsedArgs.methodName).useAllAttachedDevices().setDisableLogging(parsedArgs.disableLogging).build();
 
         if (!spoonRunner.run() && parsedArgs.failOnFailure) {
             System.exit(1);

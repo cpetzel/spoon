@@ -17,12 +17,14 @@ final class SpoonTestRunListener implements ITestRunListener {
     private final Map<TestIdentifier, DeviceTestResult.Builder> methodResults = new HashMap<TestIdentifier, DeviceTestResult.Builder>();
     private final boolean debug;
     private final TestIdentifierAdapter testIdentifierAdapter;
+    private SpoonDeviceLogger mTestLogger;
 
-    SpoonTestRunListener(DeviceResult.Builder result, boolean debug, TestIdentifierAdapter testIdentifierAdapter) {
+    SpoonTestRunListener(DeviceResult.Builder result, boolean debug, TestIdentifierAdapter testIdentifierAdapter, SpoonDeviceLogger testLogger) {
         checkNotNull(result);
         this.result = result;
         this.debug = debug;
         this.testIdentifierAdapter = testIdentifierAdapter;
+        this.mTestLogger = testLogger;
     }
 
     @Override
@@ -37,6 +39,7 @@ final class SpoonTestRunListener implements ITestRunListener {
         logDebug(debug, "test=%s", test);
         DeviceTestResult.Builder methodResult = new DeviceTestResult.Builder().startTest();
         methodResults.put(testIdentifierAdapter.adapt(test), methodResult);
+        mTestLogger.handleTestStarted();
     }
 
     @Override
@@ -51,6 +54,9 @@ final class SpoonTestRunListener implements ITestRunListener {
         }
         logDebug(debug, "failed %s", trace);
         methodResult.markTestAsFailed(trace);
+        
+        //actually add the logcats to the class collection (for later retreival)
+        mTestLogger.handleTestFailure();
     }
 
     @Override

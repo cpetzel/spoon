@@ -1,9 +1,7 @@
 package com.squareup.spoon;
 
-import com.android.ddmlib.IDevice;
-import com.android.ddmlib.logcat.LogCatListener;
-import com.android.ddmlib.logcat.LogCatMessage;
-import com.android.ddmlib.logcat.LogCatReceiverTask;
+import static com.squareup.spoon.SpoonLogger.logDebug;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -11,12 +9,17 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-final class SpoonDeviceLogger implements LogCatListener {
+import com.android.ddmlib.IDevice;
+import com.android.ddmlib.logcat.LogCatListener;
+import com.android.ddmlib.logcat.LogCatMessage;
+import com.android.ddmlib.logcat.LogCatReceiverTask;
+
+abstract class SpoonDeviceLogger implements LogCatListener {
     private static final String TEST_RUNNER = "TestRunner";
     private static final Pattern MESSAGE_START = Pattern.compile("started: ([^(]+)\\(([^)]+)\\)");
     private static final Pattern MESSAGE_END = Pattern.compile("finished: [^(]+\\([^)]+\\)");
 
-    private final List<LogCatMessage> messages;
+    protected final List<LogCatMessage> messages;
     private final LogCatReceiverTask logCatReceiverTask;
 
     public SpoonDeviceLogger(IDevice device) {
@@ -35,6 +38,10 @@ final class SpoonDeviceLogger implements LogCatListener {
             messages.addAll(msgList);
         }
     }
+
+    public abstract void handleTestStarted();
+
+    public abstract void handleTestFailure();
 
     public Map<DeviceTest, List<LogCatMessage>> getParsedLogs() {
         logCatReceiverTask.stop();
@@ -68,6 +75,7 @@ final class SpoonDeviceLogger implements LogCatListener {
                 }
             }
         }
+        
         return logs;
     }
 }

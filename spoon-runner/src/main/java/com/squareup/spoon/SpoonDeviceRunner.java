@@ -26,10 +26,15 @@ import org.apache.commons.io.filefilter.TrueFileFilter;
 import com.android.ddmlib.AndroidDebugBridge;
 import com.android.ddmlib.CollectingOutputReceiver;
 import com.android.ddmlib.FileListingService.FileEntry;
+import com.android.ddmlib.AdbCommandRejectedException;
 import com.android.ddmlib.IDevice;
 import com.android.ddmlib.InstallException;
+import com.android.ddmlib.MultiLineReceiver;
+import com.android.ddmlib.ShellCommandUnresponsiveException;
 import com.android.ddmlib.SyncService;
+import com.android.ddmlib.TimeoutException;
 import com.android.ddmlib.SyncService.ISyncProgressMonitor;
+import com.android.ddmlib.logcat.LogCatListener;
 import com.android.ddmlib.logcat.LogCatMessage;
 import com.android.ddmlib.testrunner.IRemoteAndroidTestRunner;
 import com.android.ddmlib.testrunner.RemoteAndroidTestRunner;
@@ -65,7 +70,7 @@ public final class SpoonDeviceRunner {
     private final File dataDir;
     private final String classpath;
     private final SpoonInstrumentationInfo instrumentationInfo;
-    private boolean logcatEnabled;
+    private boolean disableLogging;
 
     /**
      * Create a test runner for a single device.
@@ -96,7 +101,7 @@ public final class SpoonDeviceRunner {
      */
     SpoonDeviceRunner(File sdk, File apk, File testApk, File output, String serial, boolean debug, boolean noAnimations, int adbTimeout,
         String classpath, SpoonInstrumentationInfo instrumentationInfo, String className, String methodName,
-        IRemoteAndroidTestRunner.TestSize testSize, boolean logcatEnabled) {
+        IRemoteAndroidTestRunner.TestSize testSize, boolean disableLogging) {
         this.sdk = sdk;
         this.apk = apk;
         this.testApk = testApk;
@@ -109,7 +114,7 @@ public final class SpoonDeviceRunner {
         this.testSize = testSize;
         this.classpath = classpath;
         this.instrumentationInfo = instrumentationInfo;
-        this.logcatEnabled = logcatEnabled;
+        this.disableLogging = disableLogging;
 
         serial = SpoonUtils.sanitizeSerial(serial);
         this.work = FileUtils.getFile(output, TEMP_DIR, serial);
@@ -200,12 +205,28 @@ public final class SpoonDeviceRunner {
         // Create the output directory, if it does not already exist.
         work.mkdirs();
 
-        SpoonDeviceLogger deviceLogger = null;
-        if (logcatEnabled) {
-            // Initiate device logging.
-            deviceLogger = new SpoonDeviceLogger(device); // starts a thread
-        }
+        // TODO the old way of logging. either always on or always off for the entire duration
+        // SpoonDeviceLogger deviceLogger = null;
+        // if (logcatEnabled) {
+        // Initiate device logging.
+        // deviceLogger = new SpoonDeviceLogger(device); // starts a thread
+        // }
 
+        // If this is Android Marshmallow or above grant WRITE_EXTERNAL_STORAGE
+        if (Integer.parseInt(device.getProperty(IDevice.PROP_BUILD_API_LEVEL)) >= 23) {
+            try {
+                CollectingOutputReceiver grantOutputReceiver = new CollectingOutputReceiver();
+                device.executeShellCommand("pm grant " + appPackage + " android.permission.READ_EXTERNAL_STORAGE", grantOutputReceiver);
+                device.executeShellCommand("pm grant " + appPackage + " android.permission.WRITE_EXTERNAL_STORAGE", grantOutputReceiver);
+            } catch (Exception e) {
+                logInfo("Exception while granting external storage access to application apk" + "on device [%s]", serial);
+                e.printStackTrace(System.out);
+                return result.markInstallAsFailed("Unable to grant external storage access to" + " application APK.").build();
+            }
+        }
+        
+        
+        SpoonDeviceLogger deviceLogger = new LumosFailureDeviceLogger(device);
         // Run all the tests! o/
         try {
             logDebug(debug, "About to actually run tests for [%s]", serial);
@@ -221,12 +242,12 @@ public final class SpoonDeviceRunner {
             if (testSize != null) {
                 runner.setTestSize(testSize);
             }
-            runner.run(new SpoonTestRunListener(result, debug, testIdentifierAdapter), new XmlTestRunListener(junitReport));
+            runner.run(new SpoonTestRunListener(result, debug, testIdentifierAdapter, deviceLogger), new XmlTestRunListener(junitReport));
         } catch (Exception e) {
             result.addException(e);
         }
 
-        if (logcatEnabled && deviceLogger != null) {
+        if (!disableLogging && deviceLogger != null) {
             // Grab all the parsed logs and map them to individual tests.
             Map<DeviceTest, List<LogCatMessage>> logs = deviceLogger.getParsedLogs();
             for (Map.Entry<DeviceTest, List<LogCatMessage>> entry : logs.entrySet()) {
@@ -235,6 +256,9 @@ public final class SpoonDeviceRunner {
                     builder.setLog(entry.getValue());
                 }
             }
+            logDebug(debug, "grabbed %d test logs from [%s]", logs.size(), serial);
+        } else {
+            logDebug(debug, "We are not grabbing any logs from the devices.", serial);
         }
 
         try {
@@ -262,7 +286,7 @@ public final class SpoonDeviceRunner {
                 // Move all children of the screenshot directory into the image folder.
                 File[] classNameDirs = screenshotDir.listFiles();
                 if (classNameDirs != null) {
-//                    Multimap<DeviceTest, File> testScreenshots = ArrayListMultimap.create();
+                    // Multimap<DeviceTest, File> testScreenshots = ArrayListMultimap.create();
                     for (File classNameDir : classNameDirs) {
                         String className = classNameDir.getName();
                         File destDir = new File(imageDir, className);
@@ -294,19 +318,21 @@ public final class SpoonDeviceRunner {
                     }
 
                     // Don't generate animations if the switch is present
-//                    if (!noAnimations) {
-//                        // Make animated GIFs for all the tests which have screenshots.
-//                        for (DeviceTest deviceTest : testScreenshots.keySet()) {
-//                            List<File> screenshots = new ArrayList<File>(testScreenshots.get(deviceTest));
-//                            if (screenshots.size() == 1) {
-//                                continue; // Do not make an animated GIF if there is only one
-//                                          // screenshot.
-//                            }
-//                            File animatedGif = FileUtils.getFile(imageDir, deviceTest.getClassName(), deviceTest.getMethodName() + ".gif");
-//                            createAnimatedGif(screenshots, animatedGif);
-//                            result.getMethodResultBuilder(deviceTest).setAnimatedGif(animatedGif);
-//                        }
-//                    }
+                    // if (!noAnimations) {
+                    // // Make animated GIFs for all the tests which have screenshots.
+                    // for (DeviceTest deviceTest : testScreenshots.keySet()) {
+                    // List<File> screenshots = new
+                    // ArrayList<File>(testScreenshots.get(deviceTest));
+                    // if (screenshots.size() == 1) {
+                    // continue; // Do not make an animated GIF if there is only one
+                    // // screenshot.
+                    // }
+                    // File animatedGif = FileUtils.getFile(imageDir, deviceTest.getClassName(),
+                    // deviceTest.getMethodName() + ".gif");
+                    // createAnimatedGif(screenshots, animatedGif);
+                    // result.getMethodResultBuilder(deviceTest).setAnimatedGif(animatedGif);
+                    // }
+                    // }
                 }
                 FileUtils.deleteDirectory(screenshotDir);
             }
@@ -315,9 +341,8 @@ public final class SpoonDeviceRunner {
 
             result.addException(e);
         }
-        
-        logDebug(debug, "DONE doing screenshot stuff on [%s]", serial);
 
+        logDebug(debug, "DONE doing screenshot stuff on [%s]", serial);
 
         // TODO can eventuall just remove this, as our screenshot tool does not use this data
         if (false) {
